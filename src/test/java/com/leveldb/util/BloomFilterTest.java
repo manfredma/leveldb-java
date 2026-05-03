@@ -57,4 +57,16 @@ public class BloomFilterTest {
         byte[] filter20 = f20.createFilter(keys);
         assertTrue(filter20.length > filter5.length);
     }
+
+    @Test
+    public void testVaryKeySizes() {
+        List<Slice> keys = new ArrayList<>();
+        keys.add(Slice.from(""));           // 空串
+        keys.add(Slice.from("a"));          // 1字节
+        keys.add(new Slice(new byte[100])); // 100字节
+        byte[] f = filter.createFilter(keys);
+        for (Slice key : keys) {
+            assertTrue("key of length " + key.length() + " should match", filter.keyMayMatch(key, f));
+        }
+    }
 }

@@ -101,4 +101,72 @@ public class LogWriterReaderTest {
             assertArrayEquals(second, got2);
         }
     }
+
+    @Test
+    public void testManySmallRecordsFull() throws IOException {
+        // 补充：不同大小混合记录
+        File f = tmpDir.newFile("mixed.log");
+        Random rnd = new Random(456);
+        List<byte[]> records = new ArrayList<>();
+        // 包含正好 1 字节、HEADER_SIZE-1 字节、恰好填满一个 block 的记录
+        records.add(new byte[]{0x42});
+        records.add(new byte[LogFormat.HEADER_SIZE - 1]);
+        for (int i = 0; i < 50; i++) {
+            byte[] data = new byte[rnd.nextInt(200) + 1];
+            Arrays.fill(data, (byte)(i & 0xFF));
+            records.add(data);
+        }
+        try (LogWriter w = new LogWriter(f)) {
+            for (byte[] r : records) w.addRecord(r);
+        }
+        try (LogReader r = new LogReader(f, false, 0)) {
+            for (byte[] expected : records) {
+                byte[] got = r.readRecord();
+                assertArrayEquals(expected, got);
+            }
+            assertNull(r.readRecord());
+        }
+    }
+
+    @Test
+    public void testRecordExactlyFillsBlock() throws IOException {
+        // 恰好填满一个 block（HEADER + data = BLOCK_SIZE）
+        File f = tmpDir.newFile("exact.log");
+        // 第一条记录：data = BLOCK_SIZE - HEADER_SIZE
+        byte[] fill = new byte[LogFormat.BLOCK_SIZE - LogFormat.HEADER_SIZE];
+        Arrays.fill(fill, (byte) 0xAB);
+        byte[] second = "after_full_block".getBytes();
+        try (LogWriter w = new LogWriter(f)) {
+            w.addRecord(fill);
+            w.addRecord(second);
+        }
+        try (LogReader r = new LogReader(f, false, 0)) {
+            assertArrayEquals(fill, r.readRecord());
+            assertArrayEquals(second, r.readRecord());
+            assertNull(r.readRecord());
+        }
+    }
+
+    @Test
+    public void testMultipleSpanningRecords() throws IOException {
+        // 多条跨 block 的大记录
+        File f = tmpDir.newFile("span.log");
+        List<byte[]> records = new ArrayList<>();
+        Random rnd = new Random(789);
+        for (int i = 0; i < 5; i++) {
+            byte[] data = new byte[50 * 1024 + rnd.nextInt(10000)]; // 50-60KB
+            rnd.nextBytes(data);
+            records.add(data);
+        }
+        try (LogWriter w = new LogWriter(f)) {
+            for (byte[] r : records) w.addRecord(r);
+        }
+        try (LogReader r = new LogReader(f, false, 0)) {
+            for (byte[] expected : records) {
+                byte[] got = r.readRecord();
+                assertArrayEquals(expected, got);
+            }
+            assertNull(r.readRecord());
+        }
+    }
 }

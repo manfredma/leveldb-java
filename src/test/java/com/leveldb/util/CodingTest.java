@@ -83,4 +83,18 @@ public class CodingTest {
         Slice decoded = Coding.decodeLengthPrefixedSlice(bytes, offset);
         assertEquals(s, decoded);
     }
+
+    @Test
+    public void testBatchVarintDecoding() throws IOException {
+        // 连续写多个 varint，验证偏移正确推进
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        int[] values = {1, 128, 16383, 16384, Integer.MAX_VALUE};
+        for (int v : values) Coding.encodeVarint32(out, v);
+        byte[] bytes = out.toByteArray();
+        int[] offset = {0};
+        for (int v : values) {
+            assertEquals("value=" + v, v, Coding.decodeVarint32(bytes, offset));
+        }
+        assertEquals(bytes.length, offset[0]);
+    }
 }
